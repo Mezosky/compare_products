@@ -4,7 +4,7 @@ import numpy as np
 import io
 import argparse
 
-from similarity import run_similarity
+from utils.similarity import run_similarity
 
 app = Flask(__name__)
 
