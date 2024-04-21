@@ -7,7 +7,7 @@ from nltk.corpus import stopwords
 from collections import Counter
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
-import plotly.express as px
+from sentence_transformers import SentenceTransformer
 
 nltk.download('stopwords')
 nltk.download('punkt')
@@ -50,7 +50,7 @@ def get_stopwords(df: pd.DataFrame, product_id: str = 'nombre', reg_pattern=r"\b
     print(f"Number of stopwords: {len(my_stop_words)}")
     return my_stop_words
 
-def vectorize_dataframes(df1, df2, stop_words, mode='tfidf'):
+def vectorize_dataframes(df1, df2, stop_words, mode='hf_transformer'):
 
     """Function to vectorize the dataframes using the selected mode."""
 
@@ -65,6 +65,11 @@ def vectorize_dataframes(df1, df2, stop_words, mode='tfidf'):
         # Generate the embeddings
         embf_df_1 = pd.DataFrame(vectorizer.fit_transform(df1['nombre']).toarray()).set_index(df1['nombre'])
         embf_df_2 = pd.DataFrame(vectorizer.transform(df2['nombre']).toarray()).set_index(df2['nombre'])
+    elif mode == 'hf_transformer':
+        model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        #import pdb; pdb.set_trace()
+        embf_df_1 = pd.DataFrame(model.encode(df1['nombre'])).set_index(df1['nombre'])
+        embf_df_2 = pd.DataFrame(model.encode(df2['nombre'].reset_index(drop=True))).set_index(df2['nombre'])
     else:
         raise ValueError('Invalid mode. Unique method programmed: "tfidf"')
     
@@ -95,7 +100,7 @@ def compare_products(embf_df_1: pd.DataFrame, embf_df_2: pd.DataFrame, topn=5):
 def run_similarity(path_data_1, path_data_2, output_file='final_df.csv'):
     # Load the data
     df1 = pd.read_excel(path_data_1)[['nombre', 'numero parte']].dropna(subset='nombre').iloc[:100,:] # change this line to get all the data
-    df2 = pd.read_excel(path_data_2)[['nombre', 'numero parte']].dropna()
+    df2 = pd.read_excel(path_data_2)[['nombre', 'numero parte']].dropna(subset='nombre')
     df2 = df2.drop_duplicates(subset='nombre')
     
     # Vectorize the dataframes

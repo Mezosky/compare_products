@@ -14,4 +14,9 @@ python app.py
 
 ## Ejemplo de Funcionamiento
 
+### Legacy
 <img src="./images/gif_example.gif" width=300 >
+
+### New Comparator
+
+<img src="./images/gif_example_2.gif" width=300 >

@@ -1,15 +1,86 @@
-from flask import Flask, request, render_template_string, send_file, jsonify
+from flask import Flask, request, render_template_string, send_file, jsonify, redirect, url_for
 import pandas as pd
 import numpy as np
 import io
-import argparse
 
 from utils.similarity import run_similarity
 
 app = Flask(__name__)
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
+    if request.method == 'POST':
+        # Get the uploaded files
+        file1 = request.files.get('file1')
+        file2 = request.files.get('file2')
+
+        # Save the uploaded files to a path
+        if file1 and file2:
+            file1_path = './tempfile1.'+file1.filename.split('.')[1]
+            file2_path = './tempfile2.'+file2.filename.split('.')[1]
+            file1.save(file1_path)
+            file2.save(file2_path)
+
+            # Run the similarity function
+            run_similarity(file1_path, file2_path, './output_file.csv')
+
+            # Load the result DataFrame
+            global df  # Define df globally to use it later in the get_selected_values route
+            df = pd.read_csv('./output_file.csv', index_col=0)
+            df.index = df.index.astype(str)
+
+        #return render_template_string("Files uploaded and processed successfully. Go to '/select' to choose values.")
+        return redirect(url_for('select'))
+
+    # Form for uploading files
+    return render_template_string("""
+    <html>
+        <head>
+            <title>File Upload</title>
+        </head>
+        <body>
+            <h1>Upload two files for analysis</h1>
+            <form action="/" method="post" enctype="multipart/form-data">
+                <input type="file" name="file1">
+                <input type="file" name="file2">
+                <input type="submit" value="Upload">
+            </form>
+        </body>
+    </html>
+    """)
+
+@app.route('/select', methods=['GET', 'POST'])
+def select():
+    if request.method == 'POST':
+        # Code to handle selected values and generate CSV will be here
+        selected_cells = request.form.getlist('selected_cells')
+        selected_values = []
+
+        # Extract the value from the DataFrame based on selected cells
+        for cell in selected_cells:
+            row_idx, col_name = cell.split('_')
+            selected_values.append([row_idx, df.at[row_idx, col_name]])
+
+        # Generate CSV
+        if selected_values:
+            selected_values = np.array(selected_values)
+            bio = io.BytesIO()
+            (
+                pd.DataFrame(selected_values[:, 1], columns=['Selected Data'])
+                .set_index(df.loc[selected_values[:, 0], :].index)
+                .reset_index().to_csv(bio, index=False)
+            ) 
+            bio.seek(0)
+            return send_file(
+                path_or_file=bio, 
+                mimetype='text/csv', 
+                as_attachment=True, 
+                download_name='selected_values.csv'
+            )
+        else:
+            return jsonify(message="No cells selected")
+    
+    # Assuming df is already loaded and available
     rows_with_indices = [{'index': index, 'data': row} for index, row in df.iterrows()]
     return render_template_string("""
     <html>
@@ -30,7 +101,7 @@ def index():
         <body>
             <img id="logo" src="https://serviall.cl/wp-content/uploads/2023/09/logo-serviall-1.webp" alt="logo-serviall" width=100>
             <h2>Select the most similar products</h2>
-            <form action="/get-selected-values" method="post">
+            <form action="/select" method="post">
                 <table>
                     <tr>
                         <th>Index</th> <!-- Adding header for index -->
@@ -58,54 +129,6 @@ def index():
     </html>
     """, rows=rows_with_indices, df=df)
 
-@app.route('/get-selected-values', methods=['POST'])
-def get_selected_values():
-    selected_cells = request.form.getlist('selected_cells')
-    selected_values = []
-
-    # Extract the value from the DataFrame based on selected cells
-    for cell in selected_cells:
-        row_idx, col_name = cell.split('_')
-        selected_values.append([row_idx, df.at[row_idx, col_name]])
-
-    # Generate CSV
-    if selected_values:
-        selected_values = np.array(selected_values)
-        bio = io.BytesIO()
-        (
-            pd.DataFrame(selected_values[:, 1], columns=['Selected Data'])
-            .set_index(df.loc[selected_values[:, 0], :].index)
-            .reset_index()
-            .to_csv(bio, index=False)
-        ) 
-        bio.seek(0)
-        return send_file(
-            path_or_file=bio,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name='selected_values.csv'
-        )
-    else:
-        return jsonify(message="No cells selected")
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--path1', type=str, help='Path to the first dataset', default='datos empresa.xlsx')
-    parser.add_argument('--path2', type=str, help='Path to the second dataset', default='datos mercado.xlsx')
-    parser.add_argument('--output_file', type=str, help='Path to save the output file', default='final_df.csv')
-
-    # Parse the arguments
-    args = parser.parse_args()
-    path_data_1 = args.path1
-    path_data_2 = args.path2
-    output_file = args.output_file
-
-    # Run the similarity function
-    run_similarity(path_data_1, path_data_2)
-
-    # Load the DataFrame
-    df = pd.read_csv(output_file, index_col=0)
-    df.index = df.index.astype(str)
-    
     # Run the Flask app
     app.run(debug=True)
