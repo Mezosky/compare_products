@@ -12,6 +12,6 @@ Ejecutar el código es muy sencillo. Solo necesitas iniciar la API de Flask con 
 python app.py
 ```
 
-## Ejemplo de Uso
+## Ejemplo de Funcionamiento
 
 <img src="./images/gif_example.gif" width=300 >
